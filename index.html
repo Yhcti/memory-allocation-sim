@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory Allocation Simulator: First Fit vs Best Fit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,800;1,9..144,500&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+:root {
+  --paper: #f4efe6;
+  --ink: #121212;
+  --muted: #6b665c;
+  --accent: #ff5a36;
+  --accent-2: #2b3cff;
+  --lemon: #ffd84a;
+  --mint: #b9f0d0;
+  --line: 2px solid var(--ink);
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.55;
+  font-size: 17px;
+}
+
+/* ---------- top bar ---------- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px clamp(16px, 4vw, 48px);
+  border-bottom: var(--line);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.topbar .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); margin-right: 8px; }
+
+/* ---------- hero ---------- */
+header.hero {
+  padding: clamp(40px, 8vw, 96px) clamp(16px, 4vw, 48px) clamp(32px, 5vw, 56px);
+  border-bottom: var(--line);
+  position: relative;
+  overflow: hidden;
+}
+header.hero .tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: var(--line);
+  border-radius: 999px;
+  padding: 4px 14px;
+  background: var(--lemon);
+  margin-bottom: 22px;
+}
+header.hero h1 {
+  font-family: var(--serif);
+  font-weight: 800;
+  font-size: clamp(2.8rem, 9vw, 7rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  margin: 0 0 24px;
+  max-width: 14ch;
+}
+header.hero h1 em { font-style: italic; font-weight: 500; color: var(--accent); }
+header.hero p.lead { max-width: 52ch; font-size: 1.15rem; color: var(--muted); margin: 0; }
+header.hero .blob {
+  position: absolute;
+  right: clamp(-60px, -2vw, 0px);
+  top: 40px;
+  width: clamp(120px, 24vw, 320px);
+  aspect-ratio: 1;
+  background: var(--accent-2);
+  border: var(--line);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-12deg);
+  z-index: 0;
+}
+header.hero .blob::after {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  background: var(--lemon);
+  border: var(--line);
+  border-radius: 50%;
+}
+header.hero > *:not(.blob) { position: relative; z-index: 1; }
+
+/* ---------- layout ---------- */
+main { max-width: 1180px; margin: 0 auto; padding: clamp(24px, 5vw, 56px) clamp(16px, 4vw, 48px); }
+
+.section-head { display: flex; align-items: baseline; gap: 16px; margin: 0 0 20px; }
+.section-head .num { font-family: var(--mono); color: var(--accent); font-size: 0.95rem; }
+.section-head h2 {
+  font-family: var(--serif);
+  font-weight: 800;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1;
+}
+
+/* cards: chunky outline with a hard offset shadow */
+.card {
+  background: #fff;
+  border: var(--line);
+  border-radius: 14px;
+  padding: clamp(18px, 3vw, 30px);
+  margin-bottom: 32px;
+  box-shadow: 8px 8px 0 var(--ink);
+}
+.card h3 { font-family: var(--serif); font-weight: 800; font-size: 1.6rem; margin: 0 0 14px; letter-spacing: -0.01em; }
+.card p { margin-top: 0; }
+
+.intro { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; margin-bottom: 56px; align-items: start; }
+.intro .card { margin-bottom: 0; }
+.intro .card.alt { background: var(--mint); }
+@media (max-width: 800px) { .intro { grid-template-columns: 1fr; } }
+.intro ul { padding-left: 1.1em; margin: 0 0 12px; }
+.intro li { margin-bottom: 6px; }
+
+code {
+  font-family: var(--mono);
+  background: var(--lemon);
+  border: 1.5px solid var(--ink);
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+
+/* ---------- form ---------- */
+label { display: block; font-family: var(--mono); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 8px; }
+input[type="text"] {
+  width: 100%;
+  padding: 14px 16px;
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: var(--line);
+  border-radius: 10px;
+}
+input[type="text"]::placeholder { color: #9a9486; }
+input[type="text"]:focus { outline: none; background: #fff; box-shadow: 4px 4px 0 var(--accent-2); }
+
+.buttons { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+button {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 13px 22px;
+  border: var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+button:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--ink); }
+button:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
+button.primary { background: var(--accent); }
+button.secondary { background: #fff; }
+
+.error {
+  background: #ffe1da;
+  color: #8a1500;
+  border: var(--line);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 20px 0 0;
+  font-weight: 500;
+}
+
+/* ---------- results ---------- */
+#output:not(:empty)::before {
+  content: "03 / Results";
+  display: block;
+  font-family: var(--mono);
+  color: var(--accent);
+  font-size: 0.95rem;
+  margin: 24px 0 16px;
+}
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+@media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+.two-col .card:first-child h3::before { content: "A"; }
+.two-col .card:last-child h3::before { content: "B"; }
+.two-col .card h3::before {
+  display: inline-grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  margin-right: 10px;
+  border: var(--line);
+  border-radius: 50%;
+  background: var(--lemon);
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  vertical-align: middle;
+}
+.two-col .card:last-child h3::before { background: var(--mint); }
+
+table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 18px 0; border: var(--line); border-radius: 10px; overflow: hidden; font-size: 0.95rem; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1.5px solid var(--ink); }
+th { background: var(--ink); color: var(--paper); font-family: var(--mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
+tbody tr:last-child td { border-bottom: none; }
+td:first-child { font-family: var(--mono); font-weight: 500; }
+tr.bad td { background: #ffe1da; color: #8a1500; font-weight: 500; }
+
+.blocks { display: flex; flex-direction: column; gap: 12px; }
+.block-title { font-family: var(--mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.bar { display: flex; height: 38px; border: var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+.used { background: var(--accent-2); color: #fff; font-family: var(--mono); font-size: 0.8rem; padding: 0 10px; display: flex; align-items: center; white-space: nowrap; border-right: var(--line); }
+.free {
+  flex: 1;
+  background: repeating-linear-gradient(45deg, var(--lemon), var(--lemon) 7px, #ffe98c 7px, #ffe98c 14px);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+}
+.free.full { background: var(--paper); color: var(--muted); }
+
+.summary { line-height: 1.9; margin-bottom: 0; }
+.verdict {
+  font-family: var(--serif);
+  font-weight: 800;
+  font-size: 1.3rem;
+  line-height: 1.25;
+  background: var(--mint);
+  border: var(--line);
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.note { font-size: 0.85rem; color: var(--muted); margin-bottom: 0; }
+
+/* ---------- footer ---------- */
+footer { border-top: var(--line); background: var(--ink); color: var(--paper); padding: 28px clamp(16px, 4vw, 48px); }
+footer p { max-width: 70ch; margin: 0 auto 0 0; font-size: 0.9rem; color: #cfc9bb; }
+footer strong { color: var(--lemon); font-family: var(--mono); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.08em; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <span><span class="dot"></span>OS Final Project</span>
+    <span>Topic E1</span>
+  </div>
+
+  <header class="hero">
+    <span class="tag">Memory Allocation</span>
+    <h1>First Fit <em>vs</em> Best Fit</h1>
+    <p class="lead">A tiny simulator that shows how an operating system picks a free block of memory, and how much space each choice wastes.</p>
+    <div class="blob" aria-hidden="true"></div>
+  </header>
+
+  <main>
+    <div class="intro">
+      <section class="card">
+        <div class="section-head"><span class="num">01</span><h2>The idea</h2></div>
+        <p>When a program (process) needs memory, the operating system must choose which free
+        <strong>block</strong> of memory to give it. Different choices waste different amounts of space.</p>
+        <ul>
+          <li><strong>First Fit:</strong> use the first block that is big enough.</li>
+          <li><strong>Best Fit:</strong> use the smallest block that is big enough.</li>
+        </ul>
+      </section>
+      <section class="card alt">
+        <h3>Key term</h3>
+        <p>Each block holds at most <strong>one</strong> process (fixed partitions). The space left
+        over inside a used block is called <strong>internal fragmentation</strong>:</p>
+        <p><code>Leftover = Block size &minus; Process size</code></p>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="section-head"><span class="num">02</span><h2>Try it</h2></div>
+      <label for="blocks">Free memory block sizes (commas or spaces)</label>
+      <input id="blocks" type="text" placeholder="e.g. 100, 500, 200, 300, 600">
+
+      <label for="processes">Process sizes, in arrival order</label>
+      <input id="processes" type="text" placeholder="e.g. 212, 417, 112, 426">
+
+      <div class="buttons">
+        <button id="run" class="primary">Run simulation</button>
+        <button id="example" class="secondary">Load example</button>
+        <button id="reset" class="secondary">Clear / run another test</button>
+      </div>
+      <p id="error" class="error" role="alert" hidden></p>
+    </section>
+
+    <div id="output"></div>
+  </main>
+
+  <footer>
+    <p><strong>Limitation &mdash;</strong> this is a simulation with fixed blocks and a static list of processes.
+    There is no freeing, merging of blocks, or paging like in a real operating system.</p>
+  </footer>
+
+  <script>
+/* =====================================================================
+   Memory Allocation Simulator (E1): First Fit vs Best Fit
+   OS concept: when a process needs memory, the OS must choose WHICH free
+   block to give it. We assume FIXED PARTITIONS: each block holds at most
+   one process, and nothing is ever freed or merged.
+   ===================================================================== */
+
+/* ---------- 1. INPUT: turn text like "100, 500 200" into a list ---------- */
+function parseList(text) {
+  // Split on commas and/or spaces. Empty text gives an empty list.
+  const parts = text.trim().split(/[\s,]+/).filter(p => p !== "");
+  return parts;
+}
+
+/* ---------- 2. VALIDATION: return an error message, or "" if OK ---------- */
+function validateInput(blockText, processText) {
+  const blockParts = parseList(blockText);
+  const procParts = parseList(processText);
+
+  if (blockParts.length === 0) return "Please enter at least one memory block size.";
+  if (procParts.length === 0) return "Please enter at least one process size.";
+
+  const check = (parts, label) => {
+    for (const p of parts) {
+      // Number("abc") is NaN; Number("1e3") is allowed, so also require plain digits.
+      if (!/^-?\d+(\.\d+)?$/.test(p)) {
+        return `${label} "${p}" is not a number. Use numbers only, like 100, 500, 200.`;
+      }
+      const n = Number(p);
+      if (n <= 0) return `${label} "${p}" must be greater than 0.`;
+      if (!Number.isInteger(n)) return `${label} "${p}" must be a whole number.`;
+    }
+    return "";
+  };
+
+  return check(blockParts, "Block size") || check(procParts, "Process size");
+}
+
+/* ---------- 3. ALGORITHMS: one function per algorithm ----------
+   Both return one result per process, in the order the processes arrive:
+   { process, size, block, leftover }   (block = null if not allocated)  */
+
+// First Fit: scan blocks from the start and take the FIRST one big enough.
+function firstFit(blockSizes, processSizes) {
+  const used = new Array(blockSizes.length).fill(false); // fixed partitions: one process per block
+  return processSizes.map((size, i) => {
+    let chosen = -1;
+    for (let b = 0; b < blockSizes.length; b++) {
+      if (!used[b] && blockSizes[b] >= size) { chosen = b; break; } // stop at the first fit
+    }
+    return makeResult(i, size, chosen, blockSizes, used);
+  });
+}
+
+// Best Fit: look at ALL free blocks big enough and take the SMALLEST one.
+// Ties go to the lower block number.
+function bestFit(blockSizes, processSizes) {
+  const used = new Array(blockSizes.length).fill(false);
+  return processSizes.map((size, i) => {
+    let chosen = -1;
+    for (let b = 0; b < blockSizes.length; b++) {
+      if (!used[b] && blockSizes[b] >= size) {
+        if (chosen === -1 || blockSizes[b] < blockSizes[chosen]) chosen = b;
+      }
+    }
+    return makeResult(i, size, chosen, blockSizes, used);
+  });
+}
+
+// Shared helper: mark the block used and compute leftover = block size - process size.
+function makeResult(i, size, chosen, blockSizes, used) {
+  if (chosen === -1) {
+    return { process: i + 1, size, block: null, leftover: null };
+  }
+  used[chosen] = true;
+  return { process: i + 1, size, block: chosen + 1, leftover: blockSizes[chosen] - size };
+}
+
+/* ---------- 4. CALCULATION: summary numbers ---------- */
+function summarize(results) {
+  const allocated = results.filter(r => r.block !== null);
+  return {
+    totalLeftover: allocated.reduce((sum, r) => sum + r.leftover, 0), // internal fragmentation
+    allocatedCount: allocated.length,
+    notAllocatedCount: results.length - allocated.length,
+  };
+}
+
+/* ---------- 5. OUTPUT: build the HTML ---------- */
+function resultTable(results) {
+  let html = `<table><thead><tr>
+    <th>Process</th><th>Size</th><th>Block given</th><th>Leftover space</th>
+  </tr></thead><tbody>`;
+  for (const r of results) {
+    if (r.block === null) {
+      html += `<tr class="bad"><td>P${r.process}</td><td>${r.size}</td>
+        <td colspan="2">Not allocated (no free block is big enough)</td></tr>`;
+    } else {
+      html += `<tr><td>P${r.process}</td><td>${r.size}</td>
+        <td>Block ${r.block}</td><td>${r.leftover}</td></tr>`;
+    }
+  }
+  return html + "</tbody></table>";
+}
+
+// A simple picture: each block shows which process (if any) sits in it.
+function blocksPicture(blockSizes, results) {
+  const owner = {};
+  for (const r of results) if (r.block !== null) owner[r.block] = r;
+  let html = `<div class="blocks">`;
+  blockSizes.forEach((size, i) => {
+    const r = owner[i + 1];
+    if (r) {
+      const pct = Math.round((r.size / size) * 100);
+      html += `<div class="block"><div class="block-title">Block ${i + 1} (${size})</div>
+        <div class="bar"><div class="used" style="width:${pct}%">P${r.process}: ${r.size}</div>
+        <div class="free">${r.leftover > 0 ? r.leftover + " wasted" : ""}</div></div></div>`;
+    } else {
+      html += `<div class="block"><div class="block-title">Block ${i + 1} (${size})</div>
+        <div class="bar"><div class="free full">empty</div></div></div>`;
+    }
+  });
+  return html + "</div>";
+}
+
+function renderAlgorithm(name, blockSizes, results) {
+  const s = summarize(results);
+  return `<section class="card">
+    <h3>${name}</h3>
+    ${blocksPicture(blockSizes, results)}
+    ${resultTable(results)}
+    <p class="summary">
+      <strong>Total leftover space:</strong> ${s.totalLeftover}<br>
+      <strong>Processes placed:</strong> ${s.allocatedCount}<br>
+      <strong>Processes NOT placed:</strong> ${s.notAllocatedCount}
+    </p></section>`;
+}
+
+// Side-by-side comparison plus a short plain-English explanation.
+function renderComparison(ff, bf) {
+  const a = summarize(ff), b = summarize(bf);
+  let verdict;
+  if (a.notAllocatedCount !== b.notAllocatedCount) {
+    const winner = a.notAllocatedCount < b.notAllocatedCount ? "First Fit" : "Best Fit";
+    verdict = `${winner} placed more processes, so it did better on this input.`;
+  } else if (a.totalLeftover !== b.totalLeftover) {
+    const winner = a.totalLeftover < b.totalLeftover ? "First Fit" : "Best Fit";
+    verdict = `Both placed the same number of processes, but ${winner} wasted less memory.`;
+  } else {
+    verdict = "Both algorithms gave the same totals on this input.";
+  }
+  return `<section class="card">
+    <h3>Comparison</h3>
+    <table><thead><tr><th></th><th>First Fit</th><th>Best Fit</th></tr></thead><tbody>
+      <tr><td>Total leftover space</td><td>${a.totalLeftover}</td><td>${b.totalLeftover}</td></tr>
+      <tr><td>Processes placed</td><td>${a.allocatedCount}</td><td>${b.allocatedCount}</td></tr>
+      <tr><td>Processes NOT placed</td><td>${a.notAllocatedCount}</td><td>${b.notAllocatedCount}</td></tr>
+    </tbody></table>
+    <p class="verdict">${verdict}</p>
+    <p class="note">Note: leftover space only counts memory inside blocks that were given to a process
+    (internal fragmentation). Empty blocks are not counted as wasted.</p></section>`;
+}
+
+/* ---------- 6. MAIN: wire up the page ---------- */
+function runSimulation() {
+  const blockText = document.getElementById("blocks").value;
+  const procText = document.getElementById("processes").value;
+  const errorBox = document.getElementById("error");
+  const out = document.getElementById("output");
+
+  const error = validateInput(blockText, procText);
+  if (error) {
+    errorBox.textContent = "⚠ " + error;
+    errorBox.hidden = false;
+    out.innerHTML = "";
+    return;
+  }
+  errorBox.hidden = true;
+
+  const blockSizes = parseList(blockText).map(Number);
+  const processSizes = parseList(procText).map(Number);
+
+  const ff = firstFit(blockSizes, processSizes);
+  const bf = bestFit(blockSizes, processSizes);
+
+  out.innerHTML =
+    `<div class="two-col">${renderAlgorithm("First Fit", blockSizes, ff)}${renderAlgorithm("Best Fit", blockSizes, bf)}</div>` +
+    renderComparison(ff, bf);
+  out.scrollIntoView({ behavior: "smooth" });
+}
+
+// "Run another test" = clear everything and start fresh (no page reload needed).
+function resetForm() {
+  document.getElementById("blocks").value = "";
+  document.getElementById("processes").value = "";
+  document.getElementById("error").hidden = true;
+  document.getElementById("output").innerHTML = "";
+  document.getElementById("blocks").focus();
+}
+
+function loadExample() {
+  document.getElementById("blocks").value = "100, 500, 200, 300, 600";
+  document.getElementById("processes").value = "212, 417, 112, 426";
+}
+
+document.getElementById("run").addEventListener("click", runSimulation);
+document.getElementById("reset").addEventListener("click", resetForm);
+document.getElementById("example").addEventListener("click", loadExample);
+  </script>
+</body>
+</html>
